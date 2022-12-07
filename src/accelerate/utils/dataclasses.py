@@ -293,6 +293,7 @@ class PrecisionType(BaseEnum):
     """
 
     NO = "no"
+    FP8 = "fp8"
     FP16 = "fp16"
     BF16 = "bf16"
 

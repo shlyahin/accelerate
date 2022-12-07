@@ -78,6 +78,7 @@ class AcceleratorState:
                 if mixed_precision is None
                 else mixed_precision.lower()
             )
+            print(mixed_precision)
             dynamo_backend = (
                 parse_choice_from_env("ACCELERATE_DYNAMO_BACKEND", "no") if dynamo_backend is None else dynamo_backend
             )
