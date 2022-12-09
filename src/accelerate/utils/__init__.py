@@ -9,6 +9,7 @@ from .dataclasses import (
     DistributedDataParallelKwargs,
     DistributedType,
     DynamoBackend,
+    FP8RecipeKwargs,
     FullyShardedDataParallelPlugin,
     GradScalerKwargs,
     InitProcessGroupKwargs,
