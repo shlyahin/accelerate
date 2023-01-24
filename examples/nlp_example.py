@@ -21,10 +21,18 @@ from torch.utils.data import DataLoader
 import evaluate
 from accelerate import Accelerator, DistributedType
 from datasets import load_dataset
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, BertForSequenceClassification, get_linear_schedule_with_warmup, set_seed
-from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
-from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
-from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    BertForSequenceClassification,
+    get_linear_schedule_with_warmup,
+    set_seed,
+)
+
+
+# from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
+# from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
+# from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
 
 ########################################################################
 # This is a fully working simple example to use Accelerate
@@ -47,7 +55,7 @@ MAX_GPU_BATCH_SIZE = 16
 EVAL_BATCH_SIZE = 32
 
 
-def get_dataloaders(accelerator: Accelerator, batch_size: int = 16):
+def get_dataloaders(accelerator: Accelerator, batch_size: int = 16, debug_dataset=False):
     """
     Creates a set of `DataLoader`s for the `glue` dataset,
     using "bert-base-cased" as the tokenizer.
@@ -85,15 +93,24 @@ def get_dataloaders(accelerator: Accelerator, batch_size: int = 16):
             return tokenizer.pad(examples, padding="max_length", max_length=128, return_tensors="pt")
         return tokenizer.pad(examples, padding="longest", return_tensors="pt")
 
-    # Instantiate dataloaders.
-    train_dataloader = DataLoader(
-        tokenized_datasets["train"], shuffle=True, collate_fn=collate_fn, batch_size=batch_size
-    )
-    eval_dataloader = DataLoader(
-        tokenized_datasets["validation"], shuffle=False, collate_fn=collate_fn, batch_size=EVAL_BATCH_SIZE
-    )
-
-    return train_dataloader, eval_dataloader
+    if debug_dataset:
+        train_dataloader = DataLoader(
+            tokenized_datasets["train"].select(range(4 * batch_size)),
+            shuffle=False,
+            collate_fn=collate_fn,
+            batch_size=batch_size,
+        )
+        print(len(train_dataloader))
+        return train_dataloader, train_dataloader
+    else:
+        # Instantiate dataloaders.
+        train_dataloader = DataLoader(
+            tokenized_datasets["train"], shuffle=True, collate_fn=collate_fn, batch_size=batch_size
+        )
+        eval_dataloader = DataLoader(
+            tokenized_datasets["validation"], shuffle=False, collate_fn=collate_fn, batch_size=EVAL_BATCH_SIZE
+        )
+        return train_dataloader, eval_dataloader
 
 
 def training_function(config, args):
@@ -114,7 +131,7 @@ def training_function(config, args):
         batch_size = MAX_GPU_BATCH_SIZE
 
     set_seed(seed)
-    train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+    train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size, args.debug_dataset)
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
     old_model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
     if args.no_linear and args.no_ln:
@@ -199,9 +216,10 @@ def main():
     )
     parser.add_argument("--no_linear", action="store_true", help="Don't use te linear layers.")
     parser.add_argument("--no_ln", action="store_true", help="Don't use te layernorm layers.")
+    parser.add_argument("--debug_dataset", action="store_true", help="If passed use a deterministic dataset.")
     parser.add_argument("--cpu", action="store_true", help="If passed, will train on the CPU.")
     args = parser.parse_args()
-    config = {"lr": 2e-5, "num_epochs": 3, "seed": 42, "batch_size": 16}
+    config = {"lr": 2e-4, "num_epochs": 10, "seed": 42, "batch_size": 16}
     training_function(config, args)
 
 
