@@ -4,10 +4,11 @@ import torch
 
 from accelerate.utils import convert_model, set_seed
 from datasets import load_dataset
+from modeling_bert import BertForSequenceClassification
 from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
 from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
 from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
-from transformers import AutoTokenizer, BertForSequenceClassification
+from transformers import AutoTokenizer
 
 
 parser = argparse.ArgumentParser(description="Debugging conversion nn to te.")
@@ -46,7 +47,7 @@ def collate_fn(examples):
 tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
 tokenized_dataset.set_format("torch")
 batch = collate_fn(tokenized_dataset.to_dict()).to(0)
-outputs = model(**batch)
+outputs = model(**batch, output_hidden_states=True)
 
 state_dict = model.state_dict()
 
@@ -71,7 +72,7 @@ if not args.no_ln:
 new_model.load_state_dict(state_dict, strict=False)
 
 # new_model.forward = fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(new_model.forward)
-new_outputs = new_model(**batch)
+new_outputs = new_model(**batch, output_hidden_states=True)
 
 print(f"Loss {outputs.loss} vs {new_outputs.loss}")
 
@@ -85,6 +86,10 @@ print("Outputs comparison at 1e-6/1e-5/1e-4")
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-6))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-5))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-4))
+
+for i in range(len(outputs.hidden_states)):
+    print(f"Hidden states {i} {outputs.hidden_states[i][:3,:2,:2].tolist()} vs {new_outputs.hidden_states[i][:3,:2,:2].tolist()}")
+    print(torch.allclose(outputs.hidden_states[i], new_outputs.hidden_states[i], atol=1e-4))
 
 outputs.loss.backward()
 new_outputs.loss.backward()

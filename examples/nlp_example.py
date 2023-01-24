@@ -21,13 +21,12 @@ from torch.utils.data import DataLoader
 import evaluate
 from accelerate import Accelerator, DistributedType
 from datasets import load_dataset
+from modeling_bert import BertForSequenceClassification
 from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
 from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
 from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
 from transformers import (
-    AutoModelForSequenceClassification,
     AutoTokenizer,
-    BertForSequenceClassification,
     get_linear_schedule_with_warmup,
     set_seed,
 )
@@ -132,7 +131,7 @@ def training_function(config, args):
     set_seed(seed)
     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size, args.debug_dataset)
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    old_model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
+    old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
     if args.no_linear and args.no_ln:
         model_cls = BertForSequenceClassification
     elif args.no_linear:
