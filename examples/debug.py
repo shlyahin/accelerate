@@ -16,8 +16,9 @@ parser.add_argument("--no_linear", action="store_true", help="Don't use te linea
 parser.add_argument("--no_ln", action="store_true", help="Don't use te layernorm layers.")
 args = parser.parse_args()
 
-set_seed(42)
-model = BertForSequenceClassification.from_pretrained("bert-base-cased").to(0).train()
+set_seed(0)
+
+model = BertForSequenceClassification.from_pretrained("bert-base-cased").eval().to(0)
 tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
 
@@ -45,13 +46,12 @@ def collate_fn(examples):
 tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
 tokenized_dataset.set_format("torch")
 batch = collate_fn(tokenized_dataset.to_dict()).to(0)
-set_seed(0)
 outputs = model(**batch)
 
 state_dict = model.state_dict()
 
 if args.convert:
-    new_model = BertForSequenceClassification.from_pretrained("bert-base-cased").to(0).train()
+    new_model = BertForSequenceClassification.from_pretrained("bert-base-cased").eval().to(0)
     with torch.no_grad():
         convert_model(new_model, _convert_linear=not args.no_linear, _convert_ln=not args.no_ln)
 else:
@@ -63,7 +63,7 @@ else:
         model_cls = TEBertForSequenceClassificationNoLN
     else:
         model_cls = TEBertForSequenceClassification
-    new_model = model_cls.from_pretrained("bert-base-cased").to(0).train()
+    new_model = model_cls.from_pretrained("bert-base-cased").eval().to(0)
 
 if not args.no_ln:
     state_dict = {k.replace("LayerNorm.", "LayerNorm.layer_norm_"): v for k, v in state_dict.items()}
@@ -71,7 +71,6 @@ if not args.no_ln:
 new_model.load_state_dict(state_dict, strict=False)
 
 # new_model.forward = fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(new_model.forward)
-set_seed(0)
 new_outputs = new_model(**batch)
 
 print(f"Loss {outputs.loss} vs {new_outputs.loss}")
