@@ -72,7 +72,7 @@ new_model.load_state_dict(state_dict, strict=False)
 
 # new_model.forward = fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(new_model.forward)
 set_seed(0)
-new_outputs = new_model(**batch, labels=torch.tensor([0]).to(0))
+new_outputs = new_model(**batch)
 
 print(f"Loss {outputs.loss} vs {new_outputs.loss}")
 
@@ -81,7 +81,7 @@ print(torch.allclose(outputs.loss, new_outputs.loss, atol=1e-6))
 print(torch.allclose(outputs.loss, new_outputs.loss, atol=1e-5))
 print(torch.allclose(outputs.loss, new_outputs.loss, atol=1e-4))
 
-print(f"Logits {outputs.logits.tolist()[0]} vs {new_outputs.logits.tolist()[0]}")
+print(f"Logits {outputs.logits.tolist()} vs {new_outputs.logits.tolist()}")
 print("Outputs comparison at 1e-6/1e-5/1e-4")
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-6))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-5))
