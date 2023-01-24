@@ -21,6 +21,9 @@ from torch.utils.data import DataLoader
 import evaluate
 from accelerate import Accelerator, DistributedType
 from datasets import load_dataset
+from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
+from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
+from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -29,10 +32,6 @@ from transformers import (
     set_seed,
 )
 
-
-# from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
-# from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
-# from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
 
 ########################################################################
 # This is a fully working simple example to use Accelerate

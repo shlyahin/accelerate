@@ -3,11 +3,10 @@ import argparse
 import torch
 
 from accelerate.utils import convert_model, set_seed
+from datasets import load_dataset
 from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
 from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
 from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
-from transformer_engine.common.recipe import DelayedScaling
-from transformer_engine.pytorch import fp8_autocast
 from transformers import AutoTokenizer, BertForSequenceClassification
 
 
@@ -22,9 +21,32 @@ model = BertForSequenceClassification.from_pretrained("bert-base-cased").to(0).t
 tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
 
-inputs = tokenizer("Hello, my name is.", return_tensors="pt").to(0)
+dataset = load_dataset("glue", "mrpc")["train"].select(range(8))
+
+
+def tokenize_function(examples):
+    # max_length=None => use the model max length (it's actually the default)
+    outputs = tokenizer(examples["sentence1"], examples["sentence2"], truncation=True, max_length=None)
+    return outputs
+
+
+tokenized_dataset = dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=["idx", "sentence1", "sentence2"],
+)
+
+
+def collate_fn(examples):
+    # On TPU it's best to pad everything to the same length or training will be very slow.
+    return tokenizer.pad(examples, padding="longest", return_tensors="pt")
+
+
+tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
+tokenized_dataset.set_format("torch")
+batch = collate_fn(tokenized_dataset.to_dict()).to(0)
 set_seed(0)
-outputs = model(**inputs, labels=torch.tensor([0]).to(0))
+outputs = model(**batch)
 
 state_dict = model.state_dict()
 
@@ -50,8 +72,16 @@ new_model.load_state_dict(state_dict, strict=False)
 
 # new_model.forward = fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(new_model.forward)
 set_seed(0)
-new_outputs = new_model(**inputs, labels=torch.tensor([0]).to(0))
+new_outputs = new_model(**batch, labels=torch.tensor([0]).to(0))
 
+print(f"Loss {outputs.loss} vs {new_outputs.loss}")
+
+print("Loss comparison at 1e-6/1e-5/1e-4")
+print(torch.allclose(outputs.loss, new_outputs.loss, atol=1e-6))
+print(torch.allclose(outputs.loss, new_outputs.loss, atol=1e-5))
+print(torch.allclose(outputs.loss, new_outputs.loss, atol=1e-4))
+
+print(f"Logits {outputs.logits.tolist()[0]} vs {new_outputs.logits.tolist()[0]}")
 print("Outputs comparison at 1e-6/1e-5/1e-4")
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-6))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-5))
