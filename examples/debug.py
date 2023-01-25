@@ -84,29 +84,6 @@ print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-6))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-5))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-4))
 
-for i in range(len(outputs.hidden_states)):
-    print(
-        f"Hidden states {i} {outputs.hidden_states[i][:3,:2,:2].tolist()} vs {new_outputs.hidden_states[i][:3,:2,:2].tolist()}"
-    )
-    print(torch.allclose(outputs.hidden_states[i], new_outputs.hidden_states[i], atol=1e-4))
-
-
-last_hidden_state = outputs.hidden_states[-1]
-new_last_hidden_state = new_outputs.hidden_states[-1]
-print("Last hidden state comparison at 1e-4/1e-3/1e-2")
-print(torch.allclose(last_hidden_state, new_last_hidden_state, atol=1e-4))
-print(torch.allclose(last_hidden_state, new_last_hidden_state, atol=1e-3))
-print(torch.allclose(last_hidden_state, new_last_hidden_state, atol=1e-2))
-
-pooled_output = model.bert.pooler(last_hidden_state)
-new_pooled_output = new_model.bert.pooler(last_hidden_state)
-print(f"Pooled outputs {pooled_output[:3,:3]} vs {new_pooled_output[:3, :3]}")
-print(torch.allclose(pooled_output, new_pooled_output, atol=1e-2))
-
-logits = model.classifier(pooled_output)
-new_logits = new_model.classifier(new_pooled_output)
-print(f"Logits {logits} vs {outputs.logits}")
-
 outputs.loss.backward()
 new_outputs.loss.backward()
 
@@ -117,20 +94,21 @@ print(torch.allclose(grad1, grad2, atol=1e-6))
 print(torch.allclose(grad1, grad2, atol=1e-5))
 print(torch.allclose(grad1, grad2, atol=1e-4))
 
-grad1 = getattr(model.bert.encoder.layer, "0").attention.self.query.weight.grad
-grad2 = getattr(new_model.bert.encoder.layer, "0").attention.self.query.weight.grad
-print("Linear gradients at 1e-6/1e-5/1e-4")
-print(torch.allclose(grad1, grad2, atol=1e-6))
-print(torch.allclose(grad1, grad2, atol=1e-5))
-print(torch.allclose(grad1, grad2, atol=1e-4))
+for i in range(11, -1, -1):
+    print(f"Layer {i}")
+    grad1 = getattr(model.bert.encoder.layer, str(i)).attention.self.query.weight.grad
+    grad2 = getattr(new_model.bert.encoder.layer, str(i)).attention.self.query.weight.grad
+    print("Linear gradients at 1e-6/1e-5/1e-4/1e-3")
+    print(torch.allclose(grad1, grad2, atol=1e-6))
+    print(torch.allclose(grad1, grad2, atol=1e-5))
+    print(torch.allclose(grad1, grad2, atol=1e-4))
+    print(torch.allclose(grad1, grad2, atol=1e-3))
 
-grad1 = getattr(model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
-if not args.no_ln:
-    grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
-else:
-    grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
+    grad1 = getattr(model.bert.encoder.layer, str(i)).attention.output.LayerNorm.weight.grad
+    grad2 = getattr(new_model.bert.encoder.layer, str(i)).attention.output.LayerNorm.weight.grad
 
-print("Layer norm gradients at 1e-6/1e-5/1e-4")
-print(torch.allclose(grad1, grad2, atol=1e-6))
-print(torch.allclose(grad1, grad2, atol=1e-5))
-print(torch.allclose(grad1, grad2, atol=1e-4))
+    print("Linear gradients at 1e-6/1e-5/1e-4/1e-3")
+    print(torch.allclose(grad1, grad2, atol=1e-6))
+    print(torch.allclose(grad1, grad2, atol=1e-5))
+    print(torch.allclose(grad1, grad2, atol=1e-4))
+    print(torch.allclose(grad1, grad2, atol=1e-3))
