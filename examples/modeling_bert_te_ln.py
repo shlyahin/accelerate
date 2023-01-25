@@ -759,8 +759,8 @@ class BertPreTrainedModel(PreTrainedModel):
             if module.padding_idx is not None:
                 module.weight.data[module.padding_idx].zero_()
         elif isinstance(module, te.LayerNorm):
-            module.layer_norm_bias.data.zero_()
-            module.layer_norm_weight.data.fill_(1.0)
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
 
     def _set_gradient_checkpointing(self, module, value=False):
         if isinstance(module, BertEncoder):

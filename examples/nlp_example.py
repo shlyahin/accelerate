@@ -142,8 +142,6 @@ def training_function(config, args):
         model_cls = TEBertForSequenceClassification
     model = model_cls(old_model.config)
     state_dict = old_model.state_dict()
-    if not args.no_ln:
-        state_dict = {k.replace("LayerNorm.", "LayerNorm.layer_norm_"): v for k, v in state_dict.items()}
     model.load_state_dict(state_dict, strict=False)
 
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).

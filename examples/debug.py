@@ -17,9 +17,7 @@ parser.add_argument("--no_linear", action="store_true", help="Don't use te linea
 parser.add_argument("--no_ln", action="store_true", help="Don't use te layernorm layers.")
 args = parser.parse_args()
 
-set_seed(0)
-
-model = BertForSequenceClassification.from_pretrained("bert-base-cased").eval().to(0)
+model = BertForSequenceClassification.from_pretrained("bert-base-cased").train().to(0)
 tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
 
@@ -47,12 +45,13 @@ def collate_fn(examples):
 tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
 tokenized_dataset.set_format("torch")
 batch = collate_fn(tokenized_dataset.to_dict()).to(0)
+set_seed(0)
 outputs = model(**batch, output_hidden_states=True)
 
 state_dict = model.state_dict()
 
 if args.convert:
-    new_model = BertForSequenceClassification.from_pretrained("bert-base-cased").eval().to(0)
+    new_model = BertForSequenceClassification.from_pretrained("bert-base-cased").train().to(0)
     with torch.no_grad():
         convert_model(new_model, _convert_linear=not args.no_linear, _convert_ln=not args.no_ln)
 else:
@@ -64,14 +63,12 @@ else:
         model_cls = TEBertForSequenceClassificationNoLN
     else:
         model_cls = TEBertForSequenceClassification
-    new_model = model_cls.from_pretrained("bert-base-cased").eval().to(0)
-
-if not args.no_ln:
-    state_dict = {k.replace("LayerNorm.", "LayerNorm.layer_norm_"): v for k, v in state_dict.items()}
+    new_model = model_cls.from_pretrained("bert-base-cased").train().to(0)
 
 new_model.load_state_dict(state_dict, strict=False)
 
 # new_model.forward = fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(new_model.forward)
+set_seed(0)
 new_outputs = new_model(**batch, output_hidden_states=True)
 
 print(f"Loss {outputs.loss} vs {new_outputs.loss}")
@@ -90,6 +87,23 @@ print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-4))
 for i in range(len(outputs.hidden_states)):
     print(f"Hidden states {i} {outputs.hidden_states[i][:3,:2,:2].tolist()} vs {new_outputs.hidden_states[i][:3,:2,:2].tolist()}")
     print(torch.allclose(outputs.hidden_states[i], new_outputs.hidden_states[i], atol=1e-4))
+
+
+last_hidden_state = outputs.hidden_states[-1]
+new_last_hidden_state = new_outputs.hidden_states[-1]
+print("Last hidden state comparison at 1e-4/1e-3/1e-2")
+print(torch.allclose(last_hidden_state, new_last_hidden_state, atol=1e-4))
+print(torch.allclose(last_hidden_state, new_last_hidden_state, atol=1e-3))
+print(torch.allclose(last_hidden_state, new_last_hidden_state, atol=1e-2))
+
+pooled_output = model.bert.pooler(last_hidden_state)
+new_pooled_output = new_model.bert.pooler(last_hidden_state)
+print(f"Pooled outputs {pooled_output[:3,:3]} vs {new_pooled_output[:3, :3]}")
+print(torch.allclose(pooled_output, new_pooled_output, atol=1e-2))
+
+logits = model.classifier(pooled_output)
+new_logits = new_model.classifier(new_pooled_output)
+print(f"Logits {logits} vs {outputs.logits}")
 
 outputs.loss.backward()
 new_outputs.loss.backward()
@@ -113,6 +127,7 @@ if not args.no_ln:
     grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.layer_norm_weight.grad
 else:
     grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
+
 print("Layer norm gradients at 1e-6/1e-5/1e-4")
 print(torch.allclose(grad1, grad2, atol=1e-6))
 print(torch.allclose(grad1, grad2, atol=1e-5))
