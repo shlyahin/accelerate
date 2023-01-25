@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 
 import evaluate
 from accelerate import Accelerator, DistributedType
+from accelerate.utils import convert_model
 from datasets import load_dataset
 from modeling_bert import BertForSequenceClassification
 from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
@@ -128,22 +129,27 @@ def training_function(config, args):
     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size, args.debug_dataset)
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
     old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
-    if args.no_linear and args.no_ln:
-        model_cls = BertForSequenceClassification
-    elif args.no_linear:
-        model_cls = TEBertForSequenceClassificationNoLinear
-    elif args.no_ln:
-        model_cls = TEBertForSequenceClassificationNoLN
+    if args.convert:
+        model = BertForSequenceClassification.from_pretrained("bert-base-cased").train().to(0)
+        with torch.no_grad():
+            convert_model(model, _convert_linear=not args.no_linear, _convert_ln=not args.no_ln)
     else:
-        model_cls = TEBertForSequenceClassification
-    model = model_cls(old_model.config)
-    state_dict = old_model.state_dict()
-    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-    if len(unexpected_keys) > 0:
-        raise ValueError(f"Found the following unexpected keys: {unexpected_keys}.")
-    missing_keys = [key for key in missing_keys if "_extra_state" not in key]
-    if len(missing_keys) > 0:
-        raise ValueError(f"Found the following missing keys: {missing_keys}.")
+        if args.no_linear and args.no_ln:
+            model_cls = BertForSequenceClassification
+        elif args.no_linear:
+            model_cls = TEBertForSequenceClassificationNoLinear
+        elif args.no_ln:
+            model_cls = TEBertForSequenceClassificationNoLN
+        else:
+            model_cls = TEBertForSequenceClassification
+        model = model_cls(old_model.config)
+        state_dict = old_model.state_dict()
+        missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+        if len(unexpected_keys) > 0:
+            raise ValueError(f"Found the following unexpected keys: {unexpected_keys}.")
+        missing_keys = [key for key in missing_keys if "_extra_state" not in key]
+        if len(missing_keys) > 0:
+            raise ValueError(f"Found the following missing keys: {missing_keys}.")
 
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
     # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
@@ -215,6 +221,7 @@ def main():
     parser.add_argument("--no_ln", action="store_true", help="Don't use te layernorm layers.")
     parser.add_argument("--debug_dataset", action="store_true", help="If passed use a deterministic dataset.")
     parser.add_argument("--cpu", action="store_true", help="If passed, will train on the CPU.")
+    parser.add_argument("--convert", action="store_true", help="If passed, will convert the model with Accelerate.")
     args = parser.parse_args()
     if args.debug_dataset:
         config = {"lr": 2e-4, "num_epochs": 10, "seed": 42, "batch_size": 16}

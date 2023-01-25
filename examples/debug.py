@@ -126,7 +126,7 @@ print(torch.allclose(grad1, grad2, atol=1e-4))
 
 grad1 = getattr(model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
 if not args.no_ln:
-    grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.layer_norm_weight.grad
+    grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
 else:
     grad2 = getattr(new_model.bert.encoder.layer, "0").attention.output.LayerNorm.weight.grad
 
