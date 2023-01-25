@@ -25,11 +25,7 @@ from modeling_bert import BertForSequenceClassification
 from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
 from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
 from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
-from transformers import (
-    AutoTokenizer,
-    get_linear_schedule_with_warmup,
-    set_seed,
-)
+from transformers import AutoTokenizer, get_linear_schedule_with_warmup, set_seed
 
 
 ########################################################################
@@ -142,7 +138,12 @@ def training_function(config, args):
         model_cls = TEBertForSequenceClassification
     model = model_cls(old_model.config)
     state_dict = old_model.state_dict()
-    model.load_state_dict(state_dict, strict=False)
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    if len(unexpected_keys) > 0:
+        raise ValueError(f"Found the following unexpected keys: {unexpected_keys}.")
+    missing_keys = [key for key in missing_keys if "_extra_state" not in key]
+    if len(missing_keys) > 0:
+        raise ValueError(f"Found the following missing keys: {missing_keys}.")
 
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
     # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
@@ -215,7 +216,10 @@ def main():
     parser.add_argument("--debug_dataset", action="store_true", help="If passed use a deterministic dataset.")
     parser.add_argument("--cpu", action="store_true", help="If passed, will train on the CPU.")
     args = parser.parse_args()
-    config = {"lr": 2e-4, "num_epochs": 10, "seed": 42, "batch_size": 16}
+    if args.debug_dataset:
+        config = {"lr": 2e-4, "num_epochs": 10, "seed": 42, "batch_size": 16}
+    else:
+        config = {"lr": 2e-5, "num_epochs": 3, "seed": 42, "batch_size": 16}
     training_function(config, args)
 
 

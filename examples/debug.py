@@ -85,7 +85,9 @@ print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-5))
 print(torch.allclose(outputs.logits, new_outputs.logits, atol=1e-4))
 
 for i in range(len(outputs.hidden_states)):
-    print(f"Hidden states {i} {outputs.hidden_states[i][:3,:2,:2].tolist()} vs {new_outputs.hidden_states[i][:3,:2,:2].tolist()}")
+    print(
+        f"Hidden states {i} {outputs.hidden_states[i][:3,:2,:2].tolist()} vs {new_outputs.hidden_states[i][:3,:2,:2].tolist()}"
+    )
     print(torch.allclose(outputs.hidden_states[i], new_outputs.hidden_states[i], atol=1e-4))
 
 
