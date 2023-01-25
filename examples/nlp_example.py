@@ -128,12 +128,12 @@ def training_function(config, args):
     set_seed(seed)
     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size, args.debug_dataset)
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
     if args.convert:
         model = BertForSequenceClassification.from_pretrained("bert-base-cased").train().to(0)
         with torch.no_grad():
             convert_model(model, _convert_linear=not args.no_linear, _convert_ln=not args.no_ln)
     else:
+        old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
         if args.no_linear and args.no_ln:
             model_cls = BertForSequenceClassification
         elif args.no_linear:
