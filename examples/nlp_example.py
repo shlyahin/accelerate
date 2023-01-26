@@ -27,6 +27,8 @@ from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceC
 from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
 from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup, set_seed
+from transformer_engine.common.recipe import DelayedScaling
+import transformer_engine.pytorch as te
 
 
 ########################################################################
@@ -132,6 +134,7 @@ def training_function(config, args):
         model = BertForSequenceClassification.from_pretrained("bert-base-cased").train().to(0)
         with torch.no_grad():
             convert_model(model, _convert_linear=not args.no_linear, _convert_ln=not args.no_ln)
+        model.forward = te.fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(model.forward)
     else:
         old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
         if args.no_linear and args.no_ln:
