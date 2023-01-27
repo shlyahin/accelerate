@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 
 import evaluate
 from accelerate import Accelerator, DistributedType
-from accelerate.utils import convert_model
+from accelerate.utils import convert_model, has_transformer_engine_layers
 from datasets import load_dataset
 from modeling_bert import BertForSequenceClassification
 from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceClassification
@@ -132,8 +132,10 @@ def training_function(config, args):
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
     if args.convert:
         model = BertForSequenceClassification.from_pretrained("bert-base-cased").train().to(0)
-        with torch.no_grad():
-            convert_model(model, _convert_linear=not args.no_linear, _convert_ln=not args.no_ln)
+        if not has_transformer_engine_layers(model):
+            print("Converting model.")
+            with torch.no_grad():
+                convert_model(model)
         model.forward = te.fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(model.forward)
     else:
         old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
