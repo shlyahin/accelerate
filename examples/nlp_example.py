@@ -27,7 +27,7 @@ from modeling_bert_te import BertForSequenceClassification as TEBertForSequenceC
 from modeling_bert_te_lin import BertForSequenceClassification as TEBertForSequenceClassificationNoLN
 from modeling_bert_te_ln import BertForSequenceClassification as TEBertForSequenceClassificationNoLinear
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup, set_seed
-from transformer_engine.common.recipe import DelayedScaling
+import transformer_engine.common.recipe as te_recipe
 import transformer_engine.pytorch as te
 
 
@@ -136,7 +136,20 @@ def training_function(config, args):
             print("Converting model.")
             with torch.no_grad():
                 convert_model(model)
-        model.forward = te.fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(model.forward)
+
+        kwargs = {}
+        if "fp8_format" in kwargs:
+            kwargs["fp8_format"] = getattr(te_recipe.Format, kwargs["fp8_format"])
+        fp8_recipe = te_recipe.DelayedScaling(**kwargs)
+        fp8_enabled = torch.cuda.get_device_capability()[0] >= 9
+        if not fp8_enabled:
+            print(
+                f"The current device has compute capability of {torch.cuda.get_device_capability()} which is "
+                "insufficient for FP8 mixed precision training (requires a GPU Hopper or higher, compute "
+                "capability of 9 or higher). Will using FP16 instead."
+            )
+        model.forward = te.fp8_autocast(enabled=fp8_enabled, fp8_recipe=fp8_recipe)(model.forward)
+        # model.forward = te.fp8_autocast(enabled=False, fp8_recipe=DelayedScaling())(model.forward)
     else:
         old_model = BertForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
         if args.no_linear and args.no_ln:
