@@ -51,9 +51,9 @@ log_levels = {
 }
 
 if PartialState().is_local_main_process:
-    _default_log_level = logging.WARNING
+    _default_log_level = logging.INFO
 else:
-    _default_log_level = logging.ERROR
+    _default_log_level = logging.WARNING
 
 _tqdm_active = True
 
