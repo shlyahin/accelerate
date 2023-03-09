@@ -44,10 +44,12 @@ def test_command_parser(subparsers=None):
 
 def test_command(args):
     script_name = os.path.sep.join(__file__.split(os.path.sep)[:-2] + ["test_utils", "scripts", "test_script.py"])
-
-    test_args = f"""
-        --config_file={args.config_file} {script_name}
-    """.split()
+    test_args = []
+    if args.config_file is not None:
+        test_args += f"""
+            --config_file={args.config_file}
+        """.split()
+    test_args += [script_name]
     cmd = ["accelerate-launch"] + test_args
     result = execute_subprocess_async(cmd, env=os.environ.copy())
     if result.returncode == 0:
