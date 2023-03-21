@@ -22,7 +22,9 @@ import gc
 import inspect
 
 import torch
+from ..logging import get_logger
 
+logger = get_logger(__name__)
 
 def release_memory(*objects):
     """
@@ -127,6 +129,7 @@ def find_executable_batch_size(function: callable = None, starting_batch_size: i
                     gc.collect()
                     torch.cuda.empty_cache()
                     batch_size //= 2
+                    logger.debug(f"Batch size was reduced in half, trying again with `batch_size={batch_size}`...")
                 else:
                     raise
 
