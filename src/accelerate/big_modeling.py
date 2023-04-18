@@ -26,6 +26,7 @@ from .hooks import (
     add_hook_to_module,
     attach_align_device_hook,
     attach_align_device_hook_on_blocks,
+    remove_hook_from_submodules,
 )
 from .utils import (
     OffloadedWeightsLoader,
@@ -378,6 +379,12 @@ def dispatch_model(
     # Attaching the hook may break tied weights, so we retie them
     retie_parameters(model, tied_params)
     model.hf_device_map = device_map
+    def new_del(self):
+        remove_hook_from_submodules(self,)
+        super(self.__class__).__del__()
+
+
+
     return model
 
 
