@@ -117,6 +117,7 @@ if is_torch_version(">", "1.10.0"):
 
 
 if is_tpu_available(check_device=False):
+    import torch_xla.core.xla_model as xm
     import torch_xla.distributed.xla_multiprocessing as xmp
 
 
@@ -1414,10 +1415,15 @@ class Accelerator:
                     {"optimizer.params.lr": optimizer.lr, "optimizer.params.weight_decay": optimizer.weight_decay}
                 )
             if isinstance(scheduler, (DummyScheduler)):
+                max_lr = (
+                    getattr(scheduler.optimizer, "lr", None)
+                    if getattr(scheduler.optimizer, "defaults", None) is None
+                    else scheduler.optimizer.defaults["lr"]
+                )
                 config_kwargs.update(
                     {
                         "scheduler.params.warmup_min_lr": 0,
-                        "scheduler.params.warmup_max_lr": scheduler.optimizer.lr,
+                        "scheduler.params.warmup_max_lr": max_lr,
                         "scheduler.params.warmup_num_steps": scheduler.warmup_num_steps,
                     }
                 )
@@ -1434,10 +1440,9 @@ class Accelerator:
                 if isinstance(optimizer, (DummyOptim)):
                     kwargs["model_parameters"] = optimizer.params
                 else:
-                    if (
-                        self.deepspeed_config["zero_optimization"].get("offload_optimizer", {}).get("device", "none")
-                        != "none"
-                    ):
+                    if self.deepspeed_config["zero_optimization"].get("offload_optimizer", {}).get(
+                        "device", "none"
+                    ) != "none" and self.deepspeed_config.get("zero_force_ds_cpu_optimizer", True):
                         from deepspeed.ops.adam import DeepSpeedCPUAdam
 
                         defaults = {k: v for k, v in optimizer.defaults.items() if k in ["lr", "weight_decay"]}
@@ -2304,6 +2309,10 @@ class Accelerator:
                 )
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Saving current state to {output_dir}")
+
+        if self.distributed_type == DistributedType.TPU:
+            # Finish running the previous step before checkpointing
+            xm.mark_step()
 
         # Save the models taking care of FSDP and DeepSpeed nuances
         weights = []

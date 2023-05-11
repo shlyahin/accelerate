@@ -558,13 +558,13 @@ class MLflowTracker(GeneralTracker):
     """
 
     name = "mlflow"
-    requires_logging_directory = True
+    requires_logging_directory = False
 
     @on_main_process
     def __init__(
         self,
         experiment_name: str = None,
-        logging_dir: Optional[Union[str, os.PathLike]] = ".",
+        logging_dir: Optional[Union[str, os.PathLike]] = None,
         run_id: Optional[str] = None,
         tags: Optional[Union[Dict[str, Any], str]] = None,
         nested_run: Optional[bool] = False,
@@ -579,11 +579,17 @@ class MLflowTracker(GeneralTracker):
 
         nested_run = os.getenv("MLFLOW_NESTED_RUN", nested_run)
 
-        experiment_id = mlflow.create_experiment(
-            name=experiment_name,
-            artifact_location=logging_dir,
-            tags=tags,
-        )
+        exps = mlflow.search_experiments(filter_string=f"name = '{experiment_name}'")
+        if len(exps) > 0:
+            if len(exps) > 1:
+                logger.warning("Multiple experiments with the same name found. Using first one.")
+            experiment_id = exps[0].experiment_id
+        else:
+            experiment_id = mlflow.create_experiment(
+                name=experiment_name,
+                artifact_location=logging_dir,
+                tags=tags,
+            )
 
         self.active_run = mlflow.start_run(
             run_id=run_id,

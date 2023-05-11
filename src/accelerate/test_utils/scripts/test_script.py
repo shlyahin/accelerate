@@ -279,7 +279,7 @@ def central_dl_preparation_check():
 def mock_training(length, batch_size, generator):
     set_seed(42)
     generator.manual_seed(42)
-    train_set = RegressionDataset(length=length)
+    train_set = RegressionDataset(length=length, seed=42)
     train_dl = DataLoader(train_set, batch_size=batch_size, shuffle=True, generator=generator)
     model = RegressionModel()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
@@ -478,11 +478,6 @@ def main():
     if state.local_process_index == 0:
         print("\n**Training integration test**")
     training_check()
-
-
-def _mp_fn(index):
-    # For xla_spawn (TPUs)
-    main()
 
 
 if __name__ == "__main__":
